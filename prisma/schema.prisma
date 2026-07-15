@@ -1,0 +1,176 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PREPARING
+  SHIPPING
+  DELIVERED
+  CANCELLED
+  RETURN_REQUESTED
+  RETURNED
+}
+
+enum PayType {
+  PAY_TYPE_10 // 신용카드
+  PAY_TYPE_20 // 계좌이체
+  PAY_TYPE_30 // 가상계좌
+  PAY_TYPE_40 // 무통장입금
+}
+
+enum SelStatus {
+  SEL_STAT_00 // 판매중
+  SEL_STAT_10 // 판매중지
+  SEL_STAT_20 // 삭제
+}
+
+// ─── Order ───────────────────────────────────────────────────────────────────
+
+model Order {
+  seqno              Int          @id @default(autoincrement())
+  shopSeqno          Int          @map("shop_seqno")
+  orderNum           String?      @map("order_num") @db.VarChar(100)
+  name               String?      @db.VarChar(256)
+  payKey             String?      @map("pay_key") @db.VarChar(100)
+  totalPayPrice      Int?         @default(0) @map("total_pay_price")
+  totalProductPrice  Int?         @map("total_product_price")
+  totalDiscountPrice Int?         @default(0) @map("total_discount_price")
+  orderId            String?      @map("order_id") @db.VarChar(100)
+  orderName          String?      @map("order_name") @db.VarChar(100)
+  orderTel           String?      @map("order_tel") @db.VarChar(45)
+  orderEmail         String?      @map("order_email") @db.VarChar(256)
+  deliveryName       String?      @map("delivery_name") @db.VarChar(100)
+  deliveryTel        String?      @map("delivery_tel") @db.VarChar(45)
+  deliveryAddr1      String?      @map("delivery_addr1") @db.VarChar(512)
+  deliveryAddr2      String?      @map("delivery_addr2") @db.VarChar(512)
+  deliveryZip        String?      @map("delivery_zip") @db.VarChar(6)
+  deliveryComment    String?      @map("delivery_comment") @db.VarChar(512)
+  deliveryPrice      Int?         @map("delivery_price")
+  payType            PayType?     @default(PAY_TYPE_10) @map("pay_type")
+  orderStatus        OrderStatus  @default(PENDING_PAYMENT) @map("order_status")
+  payStatus          String?      @default("PAY_STATUS_00") @map("pay_status") @db.VarChar(100)
+
+  // FSM / Concurrency additions
+  version            Int          @default(0)
+  paidAt             DateTime?    @map("paid_at")
+
+  createdUser        String?      @map("created_user")
+  createdAt          DateTime?    @default(now()) @map("created_at")
+  updatedUser        String?      @map("updated_user")
+  updatedAt          DateTime?    @updatedAt @map("updated_at")
+  orderDate          DateTime?    @map("order_date")
+  paymentDate        DateTime?    @map("payment_date")
+
+  // Relations
+  orderDetails       OrderDetail[]
+  statusHistory      OrderStatusHistory[]
+
+  @@map("T_ORDER")
+}
+
+// ─── OrderDetail ─────────────────────────────────────────────────────────────
+
+model OrderDetail {
+  seqno              Int         @id @default(autoincrement())
+  orderSeqno         Int         @map("order_seqno")
+  supplierSeqno      Int?        @map("supplier_seqno")
+  myProductSeqno     Int?        @map("my_product_seqno")
+  orderSku           String?     @map("order_sku") @db.VarChar(100)
+  quantity           Int?
+  shopDetailNo       String?     @map("shop_detail_no") @db.VarChar(100)
+  productPrice       Int?        @default(0) @map("product_price")
+  shopDetailComment  String?     @map("shop_detail_comment") @db.VarChar(250)
+  payId              String?     @map("pay_id") @db.VarChar(100)
+  profit             Int         @default(0)
+  priceSup           Int?        @default(0) @map("price_sup")
+  deliveryPrice      Int?        @default(0) @map("delivery_price")
+  deliveryCmp        String?     @map("delivery_cmp") @db.VarChar(100)
+  deliveryNum        String?     @map("delivery_num") @db.VarChar(100)
+  shopDetailOption   Json?       @map("shop_detail_option")
+  addOptions         Json?       @map("add_options")
+  status             OrderStatus @default(PENDING_PAYMENT)
+  payStatus          String?     @default("PAY_STATUS_00") @map("pay_status") @db.VarChar(100)
+  createdAt          DateTime?   @default(now()) @map("created_at")
+  updatedAt          DateTime?   @updatedAt @map("updated_at")
+  requestedAt        DateTime?   @map("requested_at")
+  departedAt         DateTime?   @map("departed_at")
+  deliveredAt        DateTime?   @map("delivered_at")
+  confirmedAt        DateTime?   @map("confirmed_at")
+  processedAt        DateTime?   @map("processed_at")
+
+  // Relations
+  order              Order       @relation(fields: [orderSeqno], references: [seqno])
+
+  @@map("T_ORDER_DETAIL")
+}
+
+// ─── OrderStatusHistory ──────────────────────────────────────────────────────
+
+model OrderStatusHistory {
+  seqno          Int          @id @default(autoincrement())
+  orderSeqno     Int          @map("order_seqno")
+  pastStatus     OrderStatus? @map("past_status")
+  currentStatus  OrderStatus  @map("current_status")
+  result         String?      @db.VarChar(255)
+  updatedUser    String?      @map("updated_user")
+  updatedAt      DateTime?    @updatedAt @map("updated_at")
+
+  // FSM additions
+  eventType      String       @map("event_type") @db.VarChar(100)
+  eventPayload   Json?        @map("event_payload")
+
+  // Relations
+  order          Order        @relation(fields: [orderSeqno], references: [seqno])
+
+  @@map("T_ORDER_STATUS_HISTORY")
+}
+
+// ─── Product ─────────────────────────────────────────────────────────────────
+
+model Product {
+  seqno      Int          @id @default(autoincrement())
+  name       String       @db.VarChar(100)
+  info       String?      @db.VarChar(500)
+  content    String?      @db.Text
+  selStatus  SelStatus    @default(SEL_STAT_00) @map("sel_status")
+  createdAt  DateTime?    @default(now()) @map("created_at")
+  updatedAt  DateTime?    @updatedAt @map("updated_at")
+
+  // Relations
+  skus       ProductSku[]
+
+  @@map("T_PRODUCT")
+}
+
+// ─── ProductSku ──────────────────────────────────────────────────────────────
+
+model ProductSku {
+  seqno          Int        @id @default(autoincrement())
+  productSeqno   Int        @map("product_seqno")
+  sku            String     @unique @db.VarChar(100)
+  priceSup       Int?       @map("price_sup")
+  priceDelv      Int?       @map("price_delv")
+  stock          Int?
+  orderCnt       Int?       @map("order_cnt")
+  selStatus      SelStatus  @default(SEL_STAT_00) @map("sel_status")
+  attribute      Json?
+  createdAt      DateTime?  @default(now()) @map("created_at")
+  updatedAt      DateTime?  @updatedAt @map("updated_at")
+
+  // Relations
+  product        Product    @relation(fields: [productSeqno], references: [seqno])
+
+  @@map("T_PRODUCT_SKU")
+}
