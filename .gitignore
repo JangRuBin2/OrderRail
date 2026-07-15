@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Prisma generated client (run `npm run db:generate` after clone)
+src/generated/
+
+# TypeScript
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Debug
+npm-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
